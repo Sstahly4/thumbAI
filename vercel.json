@@ -5,7 +5,7 @@
   "regions": ["sfo1"],
   "env": {
     "ANTHROPIC_API_KEY": "",
-    "OPENAI_API_KEY": "",
+    "OPENAI_API_KEY": "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",
     "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "",
     "STRIPE_SECRET_KEY": "",
     "STRIPE_WEBHOOK_SECRET": "",
