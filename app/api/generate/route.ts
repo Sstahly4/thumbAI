@@ -23,10 +23,22 @@ const FALLBACK_THUMBNAILS = [
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if OpenAI API key is available
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
+      console.warn("OpenAI API key is missing or appears to be a placeholder. Using fallback thumbnails.");
+      return NextResponse.json({ 
+        thumbnails: FALLBACK_THUMBNAILS,
+        message: "Using placeholder thumbnails (API key not configured)" 
+      });
+    }
+
     const formData = await request.formData();
     const prompt = formData.get('prompt') as string || '';
     const sketch = formData.get('sketch') as File || null;
     const referenceImages: File[] = [];
+    
+    // Log the received inputs for debugging
+    console.log(`Request received: Prompt length: ${prompt.length}, Sketch: ${sketch ? 'Yes' : 'No'}, Reference images: ${referenceImages.length}`);
     
     // Get all reference images
     formData.forEach((value, key) => {
@@ -41,19 +53,31 @@ export async function POST(request: NextRequest) {
     let refPaths: string[] = [];
     
     if (sketch) {
-      sketchPath = await saveFile(sketch, 'sketches');
-      enhancedPrompt += `\n\nI've provided a rough sketch that shows the key elements and layout I want for the thumbnail. Please analyze this sketch and incorporate its main elements and composition in your design.`;
+      try {
+        sketchPath = await saveFile(sketch, 'sketches');
+        enhancedPrompt += `\n\nI've provided a rough sketch that shows the key elements and layout I want for the thumbnail. Please analyze this sketch and incorporate its main elements and composition in your design.`;
+        console.log(`Sketch saved at ${sketchPath}`);
+      } catch (err) {
+        console.error("Error saving sketch:", err);
+      }
     }
     
     if (referenceImages.length > 0) {
       enhancedPrompt += '\n\nI\'ve uploaded reference images for style inspiration. Please analyze these images for visual elements, color schemes, and composition techniques that could enhance the thumbnail.';
       for (const img of referenceImages) {
-        const refPath = await saveFile(img, 'references');
-        refPaths.push(refPath);
+        try {
+          const refPath = await saveFile(img, 'references');
+          refPaths.push(refPath);
+          console.log(`Reference image saved at ${refPath}`);
+        } catch (err) {
+          console.error("Error saving reference image:", err);
+        }
       }
     }
     
     try {
+      console.log("Attempting to generate thumbnails with OpenAI");
+      
       // Create the detailed prompt for DALL-E
       const systemPrompt = `
 Create a high-impact YouTube thumbnail based on the user's input that follows these specific guidelines:
@@ -99,32 +123,92 @@ Create a high-impact YouTube thumbnail based on the user's input that follows th
 Create 5 distinct variations that fulfill these requirements while maintaining a professional, high-quality appearance optimized for maximum CTR.
 `;
 
-      // Generate thumbnails using DALL-E
-      const thumbnails = await Promise.all(
-        Array(5).fill(0).map(async (_, i) => {
-          try {
-            const response = await openai.images.generate({
-              model: "dall-e-3",
-              prompt: `${systemPrompt}\n\nUSER REQUEST: ${enhancedPrompt}\n\nCreate a professional, eye-catching YouTube thumbnail (Variation ${i+1} of 5). Make this design distinct from the other variations by using different colors, compositions, or focal points while maintaining the core message and requirements. This is for a professional YouTube channel that needs high-CTR, action-driving thumbnails.`,
-              n: 1,
-              size: "1792x1024", // Closest to 16:9 ratio available in DALL-E 3
-              quality: "hd",
-              style: "vivid",
-            });
-            
-            // Return the URL of the generated image
-            return response.data[0].url || FALLBACK_THUMBNAILS[i];
-          } catch (err) {
-            console.error("Error generating thumbnail:", err);
-            return FALLBACK_THUMBNAILS[i];
-          }
-        })
-      );
+      // For debugging, let's start with just one thumbnail instead of five
+      const thumbnails = [];
       
-      return NextResponse.json({ 
-        thumbnails,
-        message: "Thumbnails generated successfully" 
-      });
+      try {
+        // Generate first thumbnail to test API connection
+        const response = await openai.images.generate({
+          model: "dall-e-3",
+          prompt: `${systemPrompt}\n\nUSER REQUEST: ${enhancedPrompt}\n\nCreate a professional, eye-catching YouTube thumbnail. This is for a professional YouTube channel that needs high-CTR, action-driving thumbnails.`,
+          n: 1,
+          size: "1792x1024", // Closest to 16:9 ratio available in DALL-E 3
+          quality: "hd",
+          style: "vivid",
+        });
+        
+        console.log("OpenAI API response received:", response.data.length > 0 ? "Success" : "No images returned");
+        
+        if (response.data[0]?.url) {
+          thumbnails.push(response.data[0].url);
+          
+          // If first one works, generate the rest
+          for (let i = 1; i < 5; i++) {
+            try {
+              const additionalResponse = await openai.images.generate({
+                model: "dall-e-3",
+                prompt: `${systemPrompt}\n\nUSER REQUEST: ${enhancedPrompt}\n\nCreate a professional, eye-catching YouTube thumbnail (Variation ${i+1} of 5). Make this design distinct from the other variations by using different colors, compositions, or focal points while maintaining the core message and requirements.`,
+                n: 1,
+                size: "1792x1024",
+                quality: "hd",
+                style: "vivid",
+              });
+              
+              if (additionalResponse.data[0]?.url) {
+                thumbnails.push(additionalResponse.data[0].url);
+              } else {
+                thumbnails.push(FALLBACK_THUMBNAILS[i]);
+              }
+            } catch (err) {
+              console.error(`Error generating thumbnail ${i+1}:`, err);
+              thumbnails.push(FALLBACK_THUMBNAILS[i]);
+            }
+          }
+        } else {
+          // If we failed to get the first thumbnail, use all fallbacks
+          throw new Error("No image URL in OpenAI response");
+        }
+      } catch (singleErr) {
+        console.error("Error with initial OpenAI call:", singleErr);
+        
+        // If we can't generate any images, try one more time with a simpler prompt
+        try {
+          console.log("Trying with simplified prompt...");
+          const backupResponse = await openai.images.generate({
+            model: "dall-e-3",
+            prompt: `Create a YouTube thumbnail based on: ${prompt}. Make it eye-catching with bright colors and clear visuals.`,
+            n: 1,
+            size: "1792x1024",
+            quality: "standard",
+            style: "vivid",
+          });
+          
+          if (backupResponse.data[0]?.url) {
+            thumbnails.push(backupResponse.data[0].url);
+            // Fill the rest with fallbacks
+            for (let i = 1; i < 5; i++) {
+              thumbnails.push(FALLBACK_THUMBNAILS[i]);
+            }
+          } else {
+            throw new Error("No image URL in backup response");
+          }
+        } catch (backupErr) {
+          console.error("Both OpenAI attempts failed:", backupErr);
+          // Use fallbacks if both attempts fail
+          throw backupErr;
+        }
+      }
+      
+      if (thumbnails.length > 0) {
+        console.log(`Successfully generated ${thumbnails.length} thumbnails`);
+        return NextResponse.json({ 
+          thumbnails,
+          message: "Thumbnails generated successfully" 
+        });
+      } else {
+        // This should never happen due to the error handling above
+        throw new Error("No thumbnails were generated");
+      }
     } catch (aiError) {
       console.error("AI generation error:", aiError);
       // Fall back to placeholders if AI generation fails
@@ -136,7 +220,11 @@ Create 5 distinct variations that fulfill these requirements while maintaining a
   } catch (error) {
     console.error("Error processing request:", error);
     return NextResponse.json(
-      { error: "Failed to generate thumbnails", details: error instanceof Error ? error.message : String(error) },
+      { 
+        error: "Failed to generate thumbnails", 
+        details: error instanceof Error ? error.message : String(error),
+        fallback: FALLBACK_THUMBNAILS
+      },
       { status: 500 }
     );
   }

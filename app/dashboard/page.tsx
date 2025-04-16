@@ -63,10 +63,35 @@ export default function Dashboard() {
         },
       });
 
-      setThumbnails(response.data.thumbnails);
+      if (response.data.thumbnails && response.data.thumbnails.length > 0) {
+        setThumbnails(response.data.thumbnails);
+        
+        if (response.data.message && response.data.message.includes("placeholder")) {
+          setError("Note: Using placeholder thumbnails because the API key is not configured. In a production environment, these would be AI-generated.");
+        }
+      } else {
+        throw new Error("No thumbnails returned from API");
+      }
     } catch (err) {
-      console.error(err);
-      setError("Failed to generate thumbnails. Please try again.");
+      console.error("Error in thumbnail generation:", err);
+      
+      // Check if there's a detailed error message from the API
+      let errorMessage = "Failed to generate thumbnails. Please try again.";
+      
+      if (axios.isAxiosError(err) && err.response?.data?.details) {
+        errorMessage = `Error: ${err.response.data.details}`;
+      } else if (axios.isAxiosError(err) && err.response?.data?.error) {
+        errorMessage = `Error: ${err.response.data.error}`;
+      } else if (err instanceof Error) {
+        errorMessage = `Error: ${err.message}`;
+      }
+      
+      setError(errorMessage);
+      
+      // Use fallback thumbnails if provided in the error response
+      if (axios.isAxiosError(err) && err.response?.data?.fallback) {
+        setThumbnails(err.response.data.fallback);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -99,7 +124,7 @@ export default function Dashboard() {
             <h2 className="text-xl font-semibold mb-4">Create New Thumbnail</h2>
             
             {error && (
-              <div className="bg-red-500/20 text-red-200 p-3 rounded-md mb-4">
+              <div className={`p-3 rounded-md mb-4 ${error.includes('placeholder') ? 'bg-blue-500/20 text-blue-200' : 'bg-red-500/20 text-red-200'}`}>
                 {error}
               </div>
             )}
