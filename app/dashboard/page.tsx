@@ -4,18 +4,22 @@ import { useState } from "react";
 import Link from "next/link";
 import axios from "axios";
 import Image from "next/image";
+import DrawingCanvas from "../components/DrawingCanvas";
 
 export default function Dashboard() {
   const [sketch, setSketch] = useState<File | null>(null);
+  const [sketchDataUrl, setSketchDataUrl] = useState<string | null>(null);
   const [referenceImages, setReferenceImages] = useState<File[]>([]);
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [thumbnails, setThumbnails] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<"upload" | "draw">("upload");
 
   const handleSketchUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSketch(e.target.files[0]);
+      setSketchDataUrl(null); // Clear any drawn sketch
     }
   };
 
@@ -25,9 +29,20 @@ export default function Dashboard() {
     }
   };
 
+  const handleSketchCreated = (dataUrl: string) => {
+    // Convert data URL to File object
+    fetch(dataUrl)
+      .then(res => res.blob())
+      .then(blob => {
+        const file = new File([blob], "sketch.png", { type: "image/png" });
+        setSketch(file);
+        setSketchDataUrl(dataUrl);
+      });
+  };
+
   const handleGenerate = async () => {
     if (!sketch && !prompt) {
-      setError("Please upload a sketch or provide a prompt");
+      setError("Please upload a sketch, draw something, or provide a prompt");
       return;
     }
 
@@ -90,16 +105,53 @@ export default function Dashboard() {
             )}
             
             <div className="mb-6">
-              <label className="block mb-2 font-medium">Upload Sketch (Optional)</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleSketchUpload}
-                className="w-full p-2 bg-white/10 rounded-md"
-              />
-              {sketch && (
-                <div className="mt-2 text-sm text-gray-400">
-                  Uploaded: {sketch.name}
+              <div className="flex mb-4">
+                <button
+                  type="button"
+                  className={`flex-1 p-2 text-center ${activeTab === 'upload' ? 'bg-blue-600 text-white' : 'bg-white/10 text-gray-300'} rounded-t-md`}
+                  onClick={() => setActiveTab('upload')}
+                >
+                  Upload Sketch
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 p-2 text-center ${activeTab === 'draw' ? 'bg-blue-600 text-white' : 'bg-white/10 text-gray-300'} rounded-t-md`}
+                  onClick={() => setActiveTab('draw')}
+                >
+                  Draw Sketch
+                </button>
+              </div>
+              
+              {activeTab === 'upload' ? (
+                <div>
+                  <label className="block mb-2 font-medium">Upload Sketch (Optional)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleSketchUpload}
+                    className="w-full p-2 bg-white/10 rounded-md"
+                  />
+                  {sketch && !sketchDataUrl && (
+                    <div className="mt-2 text-sm text-gray-400">
+                      Uploaded: {sketch.name}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <DrawingCanvas onSketchCreated={handleSketchCreated} />
+              )}
+              
+              {sketchDataUrl && (
+                <div className="mt-4">
+                  <p className="text-sm text-gray-400 mb-2">Sketch Preview:</p>
+                  <div className="relative h-32 w-full border border-gray-700 rounded overflow-hidden">
+                    <Image 
+                      src={sketchDataUrl} 
+                      alt="Your sketch" 
+                      fill 
+                      style={{objectFit: 'contain'}} 
+                    />
+                  </div>
                 </div>
               )}
             </div>

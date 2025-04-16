@@ -4,8 +4,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'ThumbAI - YouTube Thumbnail Generator',
-  description: 'Generate engaging YouTube thumbnails with AI',
+  title: 'ThumbAI - Create High-CTR YouTube Thumbnails with AI',
+  description: 'Generate engaging, click-worthy YouTube thumbnails using AI. Upload sketches, reference images, and get professional results in seconds.',
 }
 
 export default function RootLayout({
