@@ -4,6 +4,12 @@ import { writeFile } from 'fs/promises';
 import { join } from 'path';
 import { mkdir } from 'fs/promises';
 
+// Debug environment variables
+console.log("API Route Loaded");
+console.log("OpenAI API Key exists:", Boolean(process.env.OPENAI_API_KEY));
+console.log("OpenAI API Key length:", process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0);
+console.log("OpenAI API Key prefix:", process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 7) : "none");
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
@@ -24,14 +30,28 @@ const FALLBACK_THUMBNAILS = [
 export async function POST(request: NextRequest) {
   try {
     // Check if OpenAI API key is available
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
-      console.warn("OpenAI API key is missing or appears to be a placeholder. Using fallback thumbnails.");
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn("OpenAI API key is completely missing.");
       return NextResponse.json({ 
         thumbnails: FALLBACK_THUMBNAILS,
         message: "Using placeholder thumbnails (API key not configured)" 
       });
+    } else if (process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
+      console.warn("OpenAI API key is a placeholder value.");
+      return NextResponse.json({ 
+        thumbnails: FALLBACK_THUMBNAILS,
+        message: "Using placeholder thumbnails (API key is a placeholder)" 
+      });
+    } else if (!process.env.OPENAI_API_KEY.startsWith('sk-')) {
+      console.warn("OpenAI API key has incorrect format - doesn't start with 'sk-'.");
+      return NextResponse.json({ 
+        thumbnails: FALLBACK_THUMBNAILS,
+        message: "Using placeholder thumbnails (API key format is invalid)" 
+      });
     }
 
+    console.log("API key validation passed, proceeding with request");
+    
     const formData = await request.formData();
     const prompt = formData.get('prompt') as string || '';
     const sketch = formData.get('sketch') as File || null;
@@ -128,6 +148,7 @@ Create 5 distinct variations that fulfill these requirements while maintaining a
       
       try {
         // Generate first thumbnail to test API connection
+        console.log("Attempting first OpenAI API call...");
         const response = await openai.images.generate({
           model: "dall-e-3",
           prompt: `${systemPrompt}\n\nUSER REQUEST: ${enhancedPrompt}\n\nCreate a professional, eye-catching YouTube thumbnail. This is for a professional YouTube channel that needs high-CTR, action-driving thumbnails.`,
@@ -137,7 +158,7 @@ Create 5 distinct variations that fulfill these requirements while maintaining a
           style: "vivid",
         });
         
-        console.log("OpenAI API response received:", response.data.length > 0 ? "Success" : "No images returned");
+        console.log("OpenAI API response received:", JSON.stringify(response.data).substring(0, 100) + "...");
         
         if (response.data[0]?.url) {
           thumbnails.push(response.data[0].url);
@@ -160,18 +181,21 @@ Create 5 distinct variations that fulfill these requirements while maintaining a
                 thumbnails.push(FALLBACK_THUMBNAILS[i]);
               }
             } catch (err) {
-              console.error(`Error generating thumbnail ${i+1}:`, err);
+              console.error(`Error generating thumbnail ${i+1}:`, err instanceof Error ? err.message : String(err));
               thumbnails.push(FALLBACK_THUMBNAILS[i]);
             }
           }
         } else {
           // If we failed to get the first thumbnail, use all fallbacks
-          throw new Error("No image URL in OpenAI response");
+          throw new Error("No image URL in OpenAI response: " + JSON.stringify(response));
         }
       } catch (singleErr) {
-        console.error("Error with initial OpenAI call:", singleErr);
+        console.error("Error with initial OpenAI call:", singleErr instanceof Error ? singleErr.message : String(singleErr));
+        if (singleErr instanceof Error && singleErr.stack) {
+          console.error("Stack trace:", singleErr.stack);
+        }
         
-        // If we can't generate any images, try one more time with a simpler prompt
+        // Try with a simpler prompt as a last resort
         try {
           console.log("Trying with simplified prompt...");
           const backupResponse = await openai.images.generate({

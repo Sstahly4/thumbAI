@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "buildCommand": "npm install --omit=dev && npm install --save-dev autoprefixer@latest postcss@latest tailwindcss@latest && npm run build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next"
+} 
