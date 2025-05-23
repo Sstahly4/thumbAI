@@ -1,15 +1,12 @@
 {
-  "buildCommand": "next build",
-  "framework": "nextjs",
-  "outputDirectory": ".next",
-  "regions": ["sfo1"],
-  "env": {
-    "ANTHROPIC_API_KEY": "",
-    "OPENAI_API_KEY": "",
-    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "",
-    "STRIPE_SECRET_KEY": "",
-    "STRIPE_WEBHOOK_SECRET": "",
-    "NEXT_PUBLIC_STRIPE_PRICE_ID": "",
-    "NEXT_PUBLIC_APP_URL": ""
-  }
-} 
+  "version": 2,
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm run build",
+  "functions": {
+    "app/api/**/*": {
+      "memory": 1024,
+      "maxDuration": 120
+    }
+  },
+  "framework": "nextjs"
+}

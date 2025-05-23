@@ -1,11 +1,15 @@
+import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import './globals.css'
+import './globals.css' // Assuming you want to keep your global styles
+import AuthProvider from "@/components/auth-provider"
+import { ThemeProvider } from "@/components/theme-provider"
+import SessionUpdater from "@/components/SessionUpdater"
 
 const inter = Inter({ subsets: ['latin'] })
 
-export const metadata = {
-  title: 'ThumbAI - Create High-CTR YouTube Thumbnails with AI',
-  description: 'Generate engaging, click-worthy YouTube thumbnails using AI. Upload sketches, reference images, and get professional results in seconds.',
+export const metadata: Metadata = {
+  title: 'ThumbAI', // You can adjust this
+  description: 'Your ThumbAI Application', // You can adjust this
 }
 
 export default function RootLayout({
@@ -14,8 +18,15 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className}>
+        <AuthProvider>
+          <ThemeProvider>
+            <SessionUpdater />
+            {children}
+          </ThemeProvider>
+        </AuthProvider>
+      </body>
     </html>
   )
 }
