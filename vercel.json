@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "installCommand": "pnpm install bcryptjs @next-auth/prisma-adapter",
+  "installCommand": "pnpm install bcryptjs @next-auth/prisma-adapter resend",
   "buildCommand": "pnpm run build",
   "functions": {
     "app/api/**/*": {
