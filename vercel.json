@@ -1,12 +1,12 @@
 {
   "version": 2,
-  "installCommand": "pnpm install bcryptjs @next-auth/prisma-adapter resend",
+  "installCommand": "pnpm install",
   "buildCommand": "pnpm run build",
   "functions": {
     "app/api/**/*": {
       "memory": 1024,
-      "maxDuration": 60
+      "maxDuration": 120
     }
   },
   "framework": "nextjs"
-} 
+}
